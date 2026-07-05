@@ -1,0 +1,270 @@
+/**
+ * Order domain: API types (mirroring the backend OrderRead), fetchers and
+ * pure helpers. Money values arrive as decimal strings ("550000.00") —
+ * parse with `toNumber` for math/display.
+ */
+
+import { apiFetch } from "@/lib/api";
+
+export type OrderStatus =
+  | "pending"
+  | "confirmed"
+  | "purchasing"
+  | "purchased"
+  | "arrived"
+  | "delivered"
+  | "cancelled";
+
+export type ReceiptMethod = "cash" | "bank_transfer" | "other";
+
+export type OrderLine = {
+  id: string;
+  product_id: string;
+  product_code: string;
+  product_name: string;
+  quantity: number;
+  unit_price: string;
+  unit_deposit: string;
+  line_total: string;
+  purchased_quantity: number;
+  actual_unit_cost: string | null;
+  purchased_at: string | null;
+};
+
+export type ReceiptKind = "collection" | "refund";
+
+export type Receipt = {
+  id: string;
+  amount: string;
+  method: ReceiptMethod;
+  kind: ReceiptKind;
+  received_at: string;
+  note: string;
+};
+
+export type Order = {
+  id: string;
+  organization_id: string;
+  customer_id: string;
+  customer_name: string;
+  tracking_code: string;
+  status: OrderStatus;
+  is_separate: boolean;
+  trip_id: string | null;
+  note: string;
+  lines: OrderLine[];
+  receipts: Receipt[];
+  total_amount: string;
+  deposit_due: string;
+  total_collected: string;
+  total_refunded: string;
+  remaining: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OrderLineInput = {
+  product_id: string;
+  quantity: number;
+  unit_price: string;
+  unit_deposit?: string;
+};
+
+export type CreateReceiptInput = {
+  amount: string;
+  method?: ReceiptMethod;
+  kind?: ReceiptKind;
+  note?: string;
+};
+
+export type CreateOrderInput = {
+  customer_id: string;
+  lines: OrderLineInput[];
+  is_separate?: boolean;
+  note?: string;
+  initial_receipt?: CreateReceiptInput | null;
+};
+
+export type OrderFilters = {
+  status?: OrderStatus;
+  customer_id?: string;
+  trip_id?: string;
+  unassigned?: boolean;
+};
+
+/* --------------------------------- fetchers -------------------------------- */
+
+export function listOrders(filters: OrderFilters = {}): Promise<Order[]> {
+  const params = new URLSearchParams();
+  if (filters.status) params.set("status", filters.status);
+  if (filters.customer_id) params.set("customer_id", filters.customer_id);
+  if (filters.trip_id) params.set("trip_id", filters.trip_id);
+  if (filters.unassigned) params.set("unassigned", "true");
+  const qs = params.toString();
+  return apiFetch<Order[]>(`/orders${qs ? `?${qs}` : ""}`);
+}
+
+export function getOrder(id: string): Promise<Order> {
+  return apiFetch<Order>(`/orders/${id}`);
+}
+
+export function createOrder(input: CreateOrderInput): Promise<Order> {
+  return apiFetch<Order>("/orders", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateOrder(
+  id: string,
+  patch: { note?: string; is_separate?: boolean; lines?: OrderLineInput[] },
+): Promise<Order> {
+  return apiFetch<Order>(`/orders/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function changeOrderStatus(
+  id: string,
+  status: OrderStatus,
+): Promise<Order> {
+  return apiFetch<Order>(`/orders/${id}/status`, {
+    method: "POST",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export function addReceipt(
+  id: string,
+  input: CreateReceiptInput,
+): Promise<Order> {
+  return apiFetch<Order>(`/orders/${id}/receipts`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteReceipt(id: string, receiptId: string): Promise<void> {
+  return apiFetch<void>(`/orders/${id}/receipts/${receiptId}`, {
+    method: "DELETE",
+  });
+}
+
+export type TrackingLine = { product_name: string; quantity: number };
+
+export type Tracking = {
+  tracking_code: string;
+  status: OrderStatus;
+  lines: TrackingLine[];
+  total_amount: string;
+  total_collected: string;
+  remaining: string;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Public lookup — no auth required; unknown/malformed codes → 404. */
+export function trackOrder(code: string): Promise<Tracking> {
+  return apiFetch<Tracking>(`/tracking/${encodeURIComponent(code.trim())}`);
+}
+
+export function recordLinePurchase(
+  orderId: string,
+  lineId: string,
+  input: { purchased_quantity: number; actual_unit_cost?: string | null },
+): Promise<Order> {
+  return apiFetch<Order>(`/orders/${orderId}/lines/${lineId}/purchase`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/* ------------------------------ labels / status ---------------------------- */
+
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  pending: "Chờ xử lý",
+  confirmed: "Đã chốt",
+  purchasing: "Đang mua",
+  purchased: "Đã mua",
+  arrived: "Đã về VN",
+  delivered: "Đã giao",
+  cancelled: "Đã hủy",
+};
+
+export const STATUS_VARIANT: Record<
+  OrderStatus,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
+  pending: "outline",
+  confirmed: "secondary",
+  purchasing: "secondary",
+  purchased: "default",
+  arrived: "default",
+  delivered: "default",
+  cancelled: "destructive",
+};
+
+/** Next legal forward step for the quick-advance button (no cancel here). */
+export const NEXT_ORDER_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
+  pending: "confirmed",
+  confirmed: "purchasing",
+  purchasing: "purchased",
+  purchased: "arrived",
+  arrived: "delivered",
+};
+
+/** Statuses from which the order can still be cancelled. */
+export const CANCELLABLE: ReadonlySet<OrderStatus> = new Set([
+  "pending",
+  "confirmed",
+  "purchasing",
+]);
+
+/* --------------------------------- helpers --------------------------------- */
+
+export const toNumber = (value: string | null | undefined) =>
+  value == null ? 0 : Number(value);
+
+const moneyFormatter = new Intl.NumberFormat("vi-VN", {
+  style: "currency",
+  currency: "VND",
+  maximumFractionDigits: 0,
+});
+
+export const formatMoney = (value: number | string) =>
+  moneyFormatter.format(typeof value === "string" ? Number(value) : value);
+
+export const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
+/** Aggregate orders' lines by product → combined buying manifest. */
+export function combineLines(
+  orders: Order[],
+): { product_id: string; product_name: string; quantity: number; total: number }[] {
+  const map = new Map<
+    string,
+    { product_id: string; product_name: string; quantity: number; total: number }
+  >();
+  for (const order of orders) {
+    for (const line of order.lines) {
+      const existing = map.get(line.product_id);
+      if (existing) {
+        existing.quantity += line.quantity;
+        existing.total += toNumber(line.line_total);
+      } else {
+        map.set(line.product_id, {
+          product_id: line.product_id,
+          product_name: line.product_name,
+          quantity: line.quantity,
+          total: toNumber(line.line_total),
+        });
+      }
+    }
+  }
+  return [...map.values()];
+}

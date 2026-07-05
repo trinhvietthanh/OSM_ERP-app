@@ -1,0 +1,28 @@
+[project]
+name = "sale-intel"
+version = "0.1.0"
+description = "Promotion Tracking / Sale Intelligence Platform MVP (US retail: Macy's, Tommy Hilfiger, Bath & Body Works)"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.138.0",
+    "httpx>=0.27.0",
+    "sqlalchemy[asyncio]>=2.0.40",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    "pydantic-settings>=2.7.0",
+    "pyyaml>=6.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+    "boto3>=1.35.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.25.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]

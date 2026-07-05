@@ -1,0 +1,40 @@
+# Version control / metadata
+.git
+.gitignore
+.github
+.idea
+.vscode
+.claude
+.DS_Store
+
+# Local virtualenvs & caches
+.venv
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.typecheck_cache
+.coverage
+.coverage.*
+htmlcov
+
+# Build artifacts
+*.egg-info
+build
+dist
+
+# Secrets — never bake into an image. (.env.example is kept for reference.)
+.env
+.env.*
+!.env.example
+
+# Docker artifacts (not needed inside the image)
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Docs / misc
+README.md
+Claude.md

@@ -1,0 +1,66 @@
+# Monorepo orchestration.
+# Each service keeps its own Dockerfile in its subdirectory; this file only
+# wires them together. Run from the repo root:
+#
+#   docker compose up --build
+#   POSTGRES_PASSWORD=secret docker compose up --build   # override creds
+#
+# Compose-level overrides: copy .env.example to .env at the repo root.
+#
+# Layout:
+#   app/        FastAPI backend (build context: ./app)
+#   frontend/   Next.js app (add a Dockerfile there, then a service below)
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Export the Postgres port to the host
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-app}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+      APP_MODULE: ${APP_MODULE:-src.main:app}
+      RUN_MIGRATIONS: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Uncomment once frontend/ has a Dockerfile:
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   environment:
+  #     NEXT_PUBLIC_API_URL: http://localhost:8000
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - app
+  #   restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -1,0 +1,17 @@
+source_id: macys_us
+name: Macy's US
+country: US
+currency: USD
+base_url: https://www.macys.com
+crawl_type: http_with_playwright_fallback
+crawl_interval_minutes: 60
+enabled: true
+
+entrypoints:
+  deals:
+    url: https://www.macys.com/shop/deals-promotions
+    parser: macys_deals_page_parser
+
+  sale:
+    url: https://www.macys.com/shop/sale
+    parser: macys_sale_listing_parser

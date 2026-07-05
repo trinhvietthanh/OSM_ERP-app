@@ -1,0 +1,17 @@
+source_id: bbw_us
+name: Bath & Body Works US
+country: US
+currency: USD
+base_url: https://www.bathandbodyworks.com
+crawl_type: http_with_playwright_fallback
+crawl_interval_minutes: 60
+enabled: true
+
+entrypoints:
+  top_offers:
+    url: https://www.bathandbodyworks.com/c/top-offers
+    parser: bbw_top_offers_parser
+
+  sale:
+    url: https://www.bathandbodyworks.com/c/sale
+    parser: bbw_sale_page_parser
