@@ -64,8 +64,19 @@ export async function apiFetch<T>(
 
   const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
 
-  // Token missing/expired — drop it so the caller can redirect to /login.
-  if (res.status === 401) clearAccessToken();
+  // Token missing/expired — drop it, then force a sign-out. The login call
+  // itself (wrong credentials) is excluded so the form can surface the error,
+  // and we skip the redirect when already on /login to avoid a loop.
+  if (res.status === 401) {
+    clearAccessToken();
+    if (
+      typeof window !== "undefined" &&
+      !path.startsWith("/auth/login") &&
+      window.location.pathname !== "/login"
+    ) {
+      window.location.assign("/login");
+    }
+  }
 
   if (!res.ok) {
     const detail = await res.text().catch(() => res.statusText);

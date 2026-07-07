@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Table,
   TableBody,
@@ -26,7 +27,7 @@ import {
   CANCELLABLE,
   NEXT_ORDER_STATUS,
   ORDER_STATUS_LABELS,
-  STATUS_VARIANT,
+  STATUS_STYLE,
   addReceipt,
   changeOrderStatus,
   formatDate,
@@ -106,26 +107,26 @@ export function OrdersList() {
 
   return (
     <div className="space-y-4">
-      {/* Status filter */}
-      <div className="flex flex-wrap gap-1.5">
+      {/* Status filter — single scrollable row (no wrapping on mobile) */}
+      <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((value) => {
           const active = status === value;
           return (
             <Button
               key={value}
               size="sm"
-              variant={active ? "secondary" : "ghost"}
+              variant={active ? "default" : "secondary"}
               aria-pressed={active}
               onClick={() => setStatus(value)}
-              className="gap-1.5"
+              className="shrink-0 gap-1.5"
             >
               {value === "all" ? "Tất cả" : ORDER_STATUS_LABELS[value]}
               <span
                 className={cn(
                   "rounded-full px-1.5 text-xs tabular-nums",
                   active
-                    ? "bg-background/60 text-muted-foreground"
-                    : "bg-muted text-muted-foreground",
+                    ? "bg-primary-foreground/25 text-primary-foreground"
+                    : "bg-background text-muted-foreground",
                 )}
               >
                 {countFor(value)}
@@ -193,9 +194,7 @@ export function OrdersList() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-1">
-                      <Badge variant={STATUS_VARIANT[o.status]}>
-                        {ORDER_STATUS_LABELS[o.status]}
-                      </Badge>
+                      <StatusBadge status={o.status} />
                       {o.trip_id && <Badge variant="secondary">Đã gom</Badge>}
                       {o.is_separate && <Badge variant="outline">Riêng</Badge>}
                     </div>
@@ -233,42 +232,53 @@ export function OrdersList() {
 
       {/* Mobile cards */}
       <div className="grid gap-3 lg:hidden">
-        {filtered.map((o) => (
-          <Card key={o.id} className="py-0">
-            <CardContent className="px-4 py-3">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between gap-3 text-left"
-                onClick={() => setOpenId(openId === o.id ? null : o.id)}
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{o.customer_name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {o.tracking_code} · {formatDate(o.created_at)}
-                  </p>
-                  {(o.trip_id || o.is_separate) && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {o.trip_id ? "Đã gom chuyến" : "Giao riêng"}
+        {filtered.map((o) => {
+          const remaining = toNumber(o.remaining);
+          return (
+            <Card
+              key={o.id}
+              className={cn("border-l-4 py-0", STATUS_STYLE[o.status].bar)}
+            >
+              <CardContent className="px-4 py-3.5">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 text-left"
+                  onClick={() => setOpenId(openId === o.id ? null : o.id)}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">
+                      {o.customer_name}
                     </p>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="font-semibold">
-                    {formatMoney(o.total_amount)}
-                  </span>
-                  <Badge variant={STATUS_VARIANT[o.status]}>
-                    {ORDER_STATUS_LABELS[o.status]}
-                  </Badge>
-                </div>
-              </button>
-              {openId === o.id && (
-                <div className="mt-3 border-t border-border pt-3">
-                  <OrderDetail order={o} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {o.tracking_code} · {formatDate(o.created_at)}
+                    </p>
+                    {(o.trip_id || o.is_separate) && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {o.trip_id ? "Đã gom chuyến" : "Giao riêng"}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-lg font-bold tabular-nums">
+                      {formatMoney(o.total_amount)}
+                    </span>
+                    <StatusBadge status={o.status} size="sm" />
+                    {remaining > 0 && (
+                      <span className="text-xs font-medium text-primary tabular-nums">
+                        còn {formatMoney(o.remaining)}
+                      </span>
+                    )}
+                  </div>
+                </button>
+                {openId === o.id && (
+                  <div className="mt-3 border-t border-border pt-3">
+                    <OrderDetail order={o} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
 
         {filtered.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">
@@ -449,6 +459,16 @@ function OrderDetail({ order }: { order: Order }) {
               aria-label="Số tiền"
               className="w-32"
             />
+            {kind === "collection" && toNumber(order.remaining) > 0 && (
+              <Button
+                type="button"
+                size="xs"
+                variant="secondary"
+                onClick={() => setAmount(String(toNumber(order.remaining)))}
+              >
+                Thu hết
+              </Button>
+            )}
             <select
               value={method}
               onChange={(event) =>
@@ -480,7 +500,7 @@ function OrderDetail({ order }: { order: Order }) {
           {next && !(order.trip_id && ["confirmed", "purchasing"].includes(order.status)) && (
             <Button
               size="sm"
-              variant="secondary"
+              variant="default"
               disabled={statusMutation.isPending}
               onClick={() => statusMutation.mutate(next)}
             >

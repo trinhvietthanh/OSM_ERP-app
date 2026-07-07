@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2, UserPlus } from "lucide-react";
+import { Check, Minus, Plus, Trash2, UserPlus } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api";
 import {
   createOrder,
@@ -15,6 +16,7 @@ import { createCustomer, listCustomers } from "@/lib/customers";
 import { listProducts } from "@/lib/products";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SearchSelect } from "@/components/ui/search-select";
@@ -32,6 +34,50 @@ const emptyLine = (): LineDraft => ({
   unit_price: "",
   unit_deposit: "",
 });
+
+/**
+ * Quantity stepper — big tap targets (±) flanking a typeable number. Friendlier
+ * on a phone than a raw number input with tiny spinners. Clamps to a minimum
+ * of 1.
+ */
+function QtyStepper({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (next: number) => void;
+}) {
+  const clamp = (n: number) =>
+    Number.isFinite(n) && n >= 1 ? Math.trunc(n) : 1;
+  return (
+    <div className="inline-flex h-9 select-none items-center overflow-hidden rounded-lg border border-input bg-background">
+      <button
+        type="button"
+        aria-label="Giảm số lượng"
+        onClick={() => onChange(clamp(value - 1))}
+        className="flex size-9 items-center justify-center text-muted-foreground transition-colors hover:bg-muted active:bg-muted/70"
+      >
+        <Minus className="size-4" aria-hidden />
+      </button>
+      <input
+        type="number"
+        min={1}
+        value={Number.isFinite(value) && value > 0 ? value : ""}
+        onChange={(event) => onChange(clamp(event.target.valueAsNumber))}
+        aria-label="Số lượng"
+        className="h-9 w-10 border-x border-input bg-transparent text-center text-sm tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <button
+        type="button"
+        aria-label="Tăng số lượng"
+        onClick={() => onChange(clamp(value + 1))}
+        className="flex size-9 items-center justify-center text-muted-foreground transition-colors hover:bg-muted active:bg-muted/70"
+      >
+        <Plus className="size-4" aria-hidden />
+      </button>
+    </div>
+  );
+}
 
 /**
  * Create-order form, fully API-driven: customers + products come from the
@@ -160,7 +206,7 @@ export function CreateOrderForm({
   }
 
   return (
-    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
+    <div className="pb-24 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6 lg:pb-0">
       {/* Form */}
       <div className="space-y-4">
         <Card>
@@ -214,17 +260,24 @@ export function CreateOrderForm({
                 invalid={!customerId && !!error}
               />
             </div>
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={separate}
-                onChange={(event) => setSeparate(event.target.checked)}
-                className="size-4 rounded border-input accent-primary"
+            <button
+              type="button"
+              role="switch"
+              aria-checked={separate}
+              onClick={() => setSeparate((v) => !v)}
+              className={cn(
+                "inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                separate
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Check
+                className={cn("size-3.5", !separate && "opacity-0")}
+                aria-hidden
               />
-              <span className="text-muted-foreground">
-                Giao riêng — không gom đơn
-              </span>
-            </label>
+              Giao riêng — không gom đơn
+            </button>
           </CardContent>
         </Card>
 
@@ -246,68 +299,66 @@ export function CreateOrderForm({
             {lines.map((line, index) => (
               <div
                 key={index}
-                className="grid grid-cols-2 gap-2 rounded-lg border border-border p-2.5 sm:grid-cols-[minmax(0,1fr)_64px_110px_110px_32px] sm:items-center sm:border-0 sm:p-0"
+                className="rounded-xl border border-border bg-card p-2.5 sm:border-0 sm:bg-transparent sm:p-0"
               >
-                <div className="col-span-2 sm:col-span-1">
-                  <SearchSelect
-                    items={productItems}
-                    value={line.product_id}
-                    onChange={(product_id) => updateLine(index, { product_id })}
-                    placeholder="Chọn sản phẩm…"
-                    ariaLabel="Sản phẩm"
+                {/* Product select + delete */}
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <SearchSelect
+                      items={productItems}
+                      value={line.product_id}
+                      onChange={(product_id) =>
+                        updateLine(index, { product_id })
+                      }
+                      placeholder="Chọn sản phẩm…"
+                      ariaLabel="Sản phẩm"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Xóa dòng"
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() =>
+                      setLines((prev) =>
+                        prev.length > 1
+                          ? prev.filter((_, i) => i !== index)
+                          : [emptyLine()],
+                      )
+                    }
+                  >
+                    <Trash2 aria-hidden />
+                  </Button>
+                </div>
+                {/* Quantity stepper + price + deposit */}
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-row sm:items-center">
+                  <div className="col-span-2 flex items-center justify-between sm:col-span-1">
+                    <span className="text-xs text-muted-foreground sm:hidden">
+                      Số lượng
+                    </span>
+                    <QtyStepper
+                      value={line.qty}
+                      onChange={(qty) => updateLine(index, { qty })}
+                    />
+                  </div>
+                  <MoneyInput
+                    value={line.unit_price}
+                    onValueChange={(v) => updateLine(index, { unit_price: v })}
+                    placeholder="Giá bán"
+                    aria-label="Giá bán"
+                    className="col-span-1 sm:w-32"
+                  />
+                  <MoneyInput
+                    value={line.unit_deposit}
+                    onValueChange={(v) =>
+                      updateLine(index, { unit_deposit: v })
+                    }
+                    placeholder="Cọc/món"
+                    aria-label="Tiền cọc mỗi món"
+                    className="col-span-1 sm:w-32"
                   />
                 </div>
-                <Input
-                  type="number"
-                  min={1}
-                  value={line.qty}
-                  onChange={(event) =>
-                    updateLine(index, {
-                      qty: Number.isFinite(event.target.valueAsNumber)
-                        ? event.target.valueAsNumber
-                        : 0,
-                    })
-                  }
-                  aria-label="Số lượng"
-                />
-                <Input
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={line.unit_price}
-                  onChange={(event) =>
-                    updateLine(index, { unit_price: event.target.value })
-                  }
-                  placeholder="Giá bán"
-                  aria-label="Giá bán"
-                />
-                <Input
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={line.unit_deposit}
-                  onChange={(event) =>
-                    updateLine(index, { unit_deposit: event.target.value })
-                  }
-                  placeholder="Cọc/món"
-                  aria-label="Tiền cọc mỗi món"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Xóa dòng"
-                  className="justify-self-end sm:justify-self-auto"
-                  onClick={() =>
-                    setLines((prev) =>
-                      prev.length > 1
-                        ? prev.filter((_, i) => i !== index)
-                        : [emptyLine()],
-                    )
-                  }
-                >
-                  <Trash2 aria-hidden />
-                </Button>
               </div>
             ))}
             <div className="space-y-1.5 pt-1">
@@ -353,14 +404,13 @@ export function CreateOrderForm({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="deposit-now">Thu cọc ngay (ghi phiếu thu)</Label>
-              <Input
+              <MoneyInput
                 id="deposit-now"
-                type="number"
-                min={0}
-                step={1000}
                 value={deposit}
-                onChange={(event) => setDeposit(event.target.value)}
-                placeholder={depositDue > 0 ? String(depositDue) : "0"}
+                onValueChange={setDeposit}
+                placeholder={
+                  depositDue > 0 ? String(Math.round(depositDue / 1000)) : "0"
+                }
               />
               {Number(deposit) > 0 && (
                 <p className="text-xs text-muted-foreground">
@@ -379,7 +429,7 @@ export function CreateOrderForm({
 
         {error && <p className="text-center text-xs text-destructive">{error}</p>}
 
-        <div className="flex gap-2">
+        <div className="hidden gap-2 lg:flex">
           <Button
             type="button"
             variant="outline"
@@ -398,6 +448,35 @@ export function CreateOrderForm({
             {orderMutation.isPending ? "Đang lưu…" : "Lưu đơn"}
           </Button>
         </div>
+      </div>
+
+      {/* Mobile sticky action bar — total + primary action always reachable
+          above the bottom nav (h-16). Hidden on desktop. */}
+      <div className="sticky bottom-16 z-30 -mx-4 mt-3 flex items-center gap-3 border-t border-border bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-muted-foreground">Tổng tiền</p>
+          <p className="truncate text-base font-bold tabular-nums text-primary">
+            {formatMoney(subtotal)}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onCancel}
+          disabled={orderMutation.isPending}
+        >
+          Hủy
+        </Button>
+        <Button
+          type="button"
+          size="lg"
+          onClick={submit}
+          disabled={orderMutation.isPending || !customerId || validLines.length === 0}
+          className="gap-1.5"
+        >
+          {orderMutation.isPending ? "Đang lưu…" : "Lưu đơn"}
+        </Button>
       </div>
     </div>
   );

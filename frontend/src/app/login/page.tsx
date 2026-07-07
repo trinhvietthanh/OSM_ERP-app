@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Check, LayoutGrid } from "lucide-react";
 
+import { GuestGuard } from "@/components/guest-guard";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
@@ -23,7 +24,8 @@ const FEATURES = [
  */
 export default function LoginPage() {
   return (
-    <div className="grid min-h-dvh-safe w-full lg:grid-cols-2">
+    <GuestGuard>
+      <div className="grid min-h-dvh-safe w-full lg:grid-cols-2">
       {/* Brand panel — desktop only */}
       <aside className="relative hidden flex-col justify-between overflow-hidden bg-primary p-10 text-primary-foreground lg:flex">
         <div className="pointer-events-none absolute -top-24 -right-24 size-80 rounded-full bg-primary-foreground/10" />
@@ -61,7 +63,7 @@ export default function LoginPage() {
         </div>
 
         <p className="relative text-sm text-primary-foreground/60">
-          © 2025 App ERP. All rights reserved.
+          © 2026 App ERP. All rights reserved.
         </p>
       </aside>
 
@@ -92,6 +94,7 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
-    </div>
+      </div>
+    </GuestGuard>
   );
 }

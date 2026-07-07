@@ -205,6 +205,52 @@ export const STATUS_VARIANT: Record<
   cancelled: "destructive",
 };
 
+/**
+ * Tailwind class strings per status — used by `StatusBadge`. Each status gets a
+ * distinct hue so the order list is scannable at a glance; `bar` tints the left
+ * accent strip on a mobile order card. Tailwind ships these colors by default.
+ */
+export const STATUS_STYLE: Record<
+  OrderStatus,
+  { chip: string; dot: string; bar: string }
+> = {
+  pending: {
+    chip: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+    dot: "bg-amber-500",
+    bar: "border-amber-400",
+  },
+  confirmed: {
+    chip: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
+    dot: "bg-violet-500",
+    bar: "border-violet-400",
+  },
+  purchasing: {
+    chip: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
+    dot: "bg-sky-500",
+    bar: "border-sky-400",
+  },
+  purchased: {
+    chip: "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300",
+    dot: "bg-indigo-500",
+    bar: "border-indigo-400",
+  },
+  arrived: {
+    chip: "bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300",
+    dot: "bg-teal-500",
+    bar: "border-teal-400",
+  },
+  delivered: {
+    chip: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+    dot: "bg-emerald-500",
+    bar: "border-emerald-400",
+  },
+  cancelled: {
+    chip: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+    dot: "bg-rose-500",
+    bar: "border-rose-400",
+  },
+};
+
 /** Next legal forward step for the quick-advance button (no cancel here). */
 export const NEXT_ORDER_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   pending: "confirmed",

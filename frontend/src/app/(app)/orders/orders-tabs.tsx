@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import { OrdersList } from "./orders-browser";
 import { CreateOrderForm } from "./create-order-form";
@@ -36,19 +36,24 @@ export function OrdersTabs() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-1.5">
+      <div className="inline-flex rounded-xl bg-muted p-1">
         {TABS.map((t) => {
           const active = tab === t.id;
           return (
-            <Button
+            <button
               key={t.id}
-              size="sm"
-              variant={active ? "secondary" : "ghost"}
+              type="button"
               aria-pressed={active}
               onClick={() => setTab(t.id)}
+              className={cn(
+                "rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors",
+                active
+                  ? "bg-background text-primary shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
             >
               {t.label}
-            </Button>
+            </button>
           );
         })}
       </div>
