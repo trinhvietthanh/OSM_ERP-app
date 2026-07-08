@@ -4,15 +4,17 @@ import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Check } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api";
+import { getProfitReport } from "@/lib/reports";
 import {
-  ORDER_STATUS_LABELS,
   STATUS_VARIANT,
   combineLines,
   formatDate,
   formatMoney,
+  orderStatusLabel,
   recordLinePurchase,
   toNumber,
   type Order,
@@ -20,12 +22,12 @@ import {
 } from "@/lib/orders";
 import {
   NEXT_TRIP_STATUS,
-  TRIP_STATUS_LABELS,
   TRIP_STATUS_VARIANT,
   changeTripStatus,
   detachOrder,
   getTrip,
   listTripOrders,
+  tripStatusLabel,
   type TripStatus,
 } from "@/lib/trips";
 import { Badge } from "@/components/ui/badge";
@@ -40,9 +42,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useI18n } from "@/components/i18n-provider";
 
 /** Trip detail: info + status flow + buying checklist + orders. */
 export function TripDetail({ tripId }: { tripId: string }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
 
   const tripQuery = useQuery({
@@ -53,6 +57,10 @@ export function TripDetail({ tripId }: { tripId: string }) {
     queryKey: ["trips", tripId, "orders"],
     queryFn: () => listTripOrders(tripId),
   });
+  const pnlQuery = useQuery({
+    queryKey: ["reports", "profit", { tripId }],
+    queryFn: () => getProfitReport({ trip_id: tripId }),
+  });
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["trips"] });
@@ -62,21 +70,26 @@ export function TripDetail({ tripId }: { tripId: string }) {
   const statusMutation = useMutation({
     mutationFn: (status: TripStatus) => changeTripStatus(tripId, status),
     onSuccess: (trip) => {
-      toast.success(`Chuyến ${trip.code}: ${TRIP_STATUS_LABELS[trip.status]}`);
+      toast.success(
+        t("trips.detail.toastStatus", {
+          code: trip.code,
+          status: tripStatusLabel(trip.status),
+        }),
+      );
       invalidate();
     },
     onError: (err: Error) =>
-      toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra"),
+      toast.error(err instanceof ApiError ? err.message : t("common.errorOccurred")),
   });
 
   const detachMutation = useMutation({
     mutationFn: (orderId: string) => detachOrder(tripId, orderId),
     onSuccess: () => {
-      toast.success("Đã gỡ đơn khỏi chuyến");
+      toast.success(t("trips.detail.detachOk"));
       invalidate();
     },
     onError: (err: Error) =>
-      toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra"),
+      toast.error(err instanceof ApiError ? err.message : t("common.errorOccurred")),
   });
 
   if (tripQuery.isLoading || ordersQuery.isLoading) {
@@ -90,7 +103,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
   if (tripQuery.isError || !tripQuery.data) {
     return (
       <p className="py-10 text-center text-sm text-destructive">
-        Không tải được chuyến hàng.
+        {t("trips.detail.error")}
       </p>
     );
   }
@@ -109,7 +122,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
       <Button asChild variant="ghost" size="sm" className="gap-1.5 -ml-2">
         <Link href="/trips">
           <ArrowLeft aria-hidden />
-          Chuyến hàng
+          {t("trips.detail.back")}
         </Link>
       </Button>
 
@@ -120,14 +133,20 @@ export function TripDetail({ tripId }: { tripId: string }) {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg font-semibold">{trip.name}</h1>
               <Badge variant={TRIP_STATUS_VARIANT[trip.status]}>
-                {TRIP_STATUS_LABELS[trip.status]}
+                {tripStatusLabel(trip.status)}
               </Badge>
             </div>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {trip.code}
-              {trip.shopper_name ? ` · Người xách tay: ${trip.shopper_name}` : ""}
-              {trip.departure_date ? ` · Đi ${formatDate(trip.departure_date)}` : ""}
-              {trip.arrival_date ? ` · Về ${formatDate(trip.arrival_date)}` : ""}
+              {trip.shopper_name
+                ? ` · ${t("trips.detail.shopper")}${trip.shopper_name}`
+                : ""}
+              {trip.departure_date
+                ? ` · ${t("trips.detail.departure")}${formatDate(trip.departure_date)}`
+                : ""}
+              {trip.arrival_date
+                ? ` · ${t("trips.detail.arrival")}${formatDate(trip.arrival_date)}`
+                : ""}
             </p>
           </div>
           <div className="flex gap-2">
@@ -138,7 +157,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
                 disabled={statusMutation.isPending}
                 onClick={() => statusMutation.mutate("cancelled")}
               >
-                Hủy chuyến
+                {t("trips.detail.cancel")}
               </Button>
             )}
             {next && (
@@ -147,7 +166,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
                 disabled={statusMutation.isPending}
                 onClick={() => statusMutation.mutate(next)}
               >
-                → {TRIP_STATUS_LABELS[next]}
+                {t("trips.detail.advance", { status: tripStatusLabel(next) })}
               </Button>
             )}
           </div>
@@ -159,23 +178,26 @@ export function TripDetail({ tripId }: { tripId: string }) {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Đơn trong chuyến ({orders.length})</CardTitle>
+              <CardTitle>
+                {t("trips.detail.ordersTitle", { count: orders.length })}
+              </CardTitle>
               {trip.status === "buying" && (
                 <CardDescription>
-                  Tick từng món đã mua và nhập giá mua thực tế — đơn tự chuyển
-                  “Đã mua” khi mua đủ.
+                  {t("trips.detail.ordersDesc", {
+                    status: t("statuses.order.purchased"),
+                  })}
                 </CardDescription>
               )}
             </CardHeader>
             <CardContent className="space-y-4">
               {orders.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">
-                  Chưa có đơn nào.{" "}
+                  {t("trips.detail.empty")}
                   <Link
                     href="/orders?tab=consolidate"
                     className="underline underline-offset-4"
                   >
-                    Gom đơn
+                    {t("trips.detail.emptyCta")}
                   </Link>
                 </p>
               ) : (
@@ -195,7 +217,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant={STATUS_VARIANT[order.status]}>
-                          {ORDER_STATUS_LABELS[order.status]}
+                          {orderStatusLabel(order.status)}
                         </Badge>
                         {trip.status === "planning" && (
                           <Button
@@ -204,7 +226,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
                             disabled={detachMutation.isPending}
                             onClick={() => detachMutation.mutate(order.id)}
                           >
-                            Gỡ khỏi chuyến
+                            {t("trips.detail.detach")}
                           </Button>
                         )}
                       </div>
@@ -227,18 +249,84 @@ export function TripDetail({ tripId }: { tripId: string }) {
           </Card>
         </div>
 
-        {/* Manifest */}
-        <div className="mt-4 lg:sticky lg:top-20 lg:mt-0">
+        {/* Manifest + P&L */}
+        <div className="mt-4 space-y-4 lg:sticky lg:top-20 lg:mt-0">
+          {pnlQuery.data && pnlQuery.data.orders_count > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("trips.detail.pnlTitle")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">
+                    {t("trips.detail.pnlRevenue")}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {formatMoney(pnlQuery.data.total_revenue)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">
+                    {t("trips.detail.pnlCost")}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {formatMoney(pnlQuery.data.total_cost)}
+                  </span>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{t("trips.detail.pnlProfit")}</span>
+                  <span
+                    className={cn(
+                      "font-semibold tabular-nums",
+                      toNumber(pnlQuery.data.total_profit) >= 0
+                        ? "text-green-600"
+                        : "text-destructive",
+                    )}
+                  >
+                    {formatMoney(pnlQuery.data.total_profit)}
+                  </span>
+                </div>
+                {toNumber(pnlQuery.data.total_revenue) > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {t("trips.detail.pnlMargin")}
+                    </span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {(
+                        ((toNumber(pnlQuery.data.total_revenue) -
+                          toNumber(pnlQuery.data.total_cost)) /
+                          toNumber(pnlQuery.data.total_revenue)) *
+                        100
+                      ).toFixed(0)}
+                      %
+                    </span>
+                  </div>
+                )}
+                {pnlQuery.data.orders_with_incomplete_cost > 0 && (
+                  <p className="flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-xs text-amber-700">
+                    <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                    {t("trips.detail.pnlIncomplete", {
+                      count: pnlQuery.data.orders_with_incomplete_cost,
+                    })}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
-              <CardTitle>Danh sách cần mua</CardTitle>
+              <CardTitle>{t("trips.detail.manifestTitle")}</CardTitle>
               <CardDescription>
-                Gộp theo món — gửi cho người xách tay.
+                {t("trips.detail.manifestDesc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {manifest.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Chưa có món nào.</p>
+                <p className="text-sm text-muted-foreground">
+                  {t("trips.detail.manifestEmpty")}
+                </p>
               ) : (
                 <>
                   <ul className="space-y-1.5 text-sm">
@@ -256,7 +344,9 @@ export function TripDetail({ tripId }: { tripId: string }) {
                   </ul>
                   <Separator />
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Tổng tiền bán</span>
+                    <span className="text-sm font-medium">
+                      {t("trips.detail.salesTotal")}
+                    </span>
                     <span className="font-semibold tabular-nums">
                       {formatMoney(grandTotal)}
                     </span>
@@ -283,6 +373,7 @@ function PurchaseLine({
   canRecord: boolean;
   onSaved: () => void;
 }) {
+  const { t } = useI18n();
   const [qty, setQty] = useState(
     line.purchased_quantity > 0 ? String(line.purchased_quantity) : "",
   );
@@ -297,13 +388,13 @@ function PurchaseLine({
     onSuccess: (updated) => {
       toast.success(
         updated.status === "purchased"
-          ? `Đơn ${updated.tracking_code} đã mua đủ!`
-          : "Đã ghi nhận mua hàng",
+          ? t("trips.detail.purchaseToastFull", { code: updated.tracking_code })
+          : t("trips.detail.purchaseToast"),
       );
       onSaved();
     },
     onError: (err: Error) =>
-      toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra"),
+      toast.error(err instanceof ApiError ? err.message : t("common.errorOccurred")),
   });
 
   const done = line.purchased_quantity >= line.quantity;
@@ -317,7 +408,7 @@ function PurchaseLine({
         {line.product_name}
         <span className="text-muted-foreground"> × {line.quantity}</span>
         <span className="ml-1 tabular-nums text-muted-foreground">
-          · bán {formatMoney(line.unit_price)}
+          · {t("trips.detail.unitPrice", { money: formatMoney(line.unit_price) })}
         </span>
       </span>
       {canRecord ? (
@@ -329,7 +420,7 @@ function PurchaseLine({
             value={qty}
             onChange={(event) => setQty(event.target.value)}
             placeholder={`0/${line.quantity}`}
-            aria-label="Số lượng đã mua"
+            aria-label={t("trips.detail.boughtAria")}
             className="h-8 w-20"
           />
           <Input
@@ -338,8 +429,8 @@ function PurchaseLine({
             step={1000}
             value={cost}
             onChange={(event) => setCost(event.target.value)}
-            placeholder="Giá mua"
-            aria-label="Giá mua thực tế"
+            placeholder={t("trips.detail.costPh")}
+            aria-label={t("trips.detail.costAria")}
             className="h-8 w-28"
           />
           <Button
@@ -349,13 +440,16 @@ function PurchaseLine({
             disabled={mutation.isPending || qty === ""}
             onClick={() => mutation.mutate()}
           >
-            Lưu
+            {t("trips.detail.save")}
           </Button>
         </span>
       ) : (
         line.purchased_quantity > 0 && (
           <span className="tabular-nums text-muted-foreground">
-            đã mua {line.purchased_quantity}/{line.quantity}
+            {t("trips.detail.boughtCaption", {
+              bought: line.purchased_quantity,
+              qty: line.quantity,
+            })}
             {line.actual_unit_cost
               ? ` · ${formatMoney(line.actual_unit_cost)}`
               : ""}

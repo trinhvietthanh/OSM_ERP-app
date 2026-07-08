@@ -5,6 +5,8 @@
  */
 
 import { apiFetch } from "@/lib/api";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { LOCALE_BCP47, getActiveLocale, type Locale } from "@/lib/i18n/config";
 
 export type OrderStatus =
   | "pending"
@@ -182,15 +184,10 @@ export function recordLinePurchase(
 
 /* ------------------------------ labels / status ---------------------------- */
 
-export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  pending: "Chờ xử lý",
-  confirmed: "Đã chốt",
-  purchasing: "Đang mua",
-  purchased: "Đã mua",
-  arrived: "Đã về VN",
-  delivered: "Đã giao",
-  cancelled: "Đã hủy",
-};
+/** Localized label for an order status, in the active locale. */
+export function orderStatusLabel(status: OrderStatus): string {
+  return dictionaries[getActiveLocale()].statuses.order[status];
+}
 
 export const STATUS_VARIANT: Record<
   OrderStatus,
@@ -272,17 +269,29 @@ export const CANCELLABLE: ReadonlySet<OrderStatus> = new Set([
 export const toNumber = (value: string | null | undefined) =>
   value == null ? 0 : Number(value);
 
-const moneyFormatter = new Intl.NumberFormat("vi-VN", {
-  style: "currency",
-  currency: "VND",
-  maximumFractionDigits: 0,
-});
+// One formatter per locale (VND currency in both; grouping/symbol differ).
+const moneyFormatters: Record<Locale, Intl.NumberFormat> = {
+  vi: new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }),
+  en: new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }),
+};
 
+/** Format a money value as VND in the active locale. */
 export const formatMoney = (value: number | string) =>
-  moneyFormatter.format(typeof value === "string" ? Number(value) : value);
+  moneyFormatters[getActiveLocale()].format(
+    typeof value === "string" ? Number(value) : value,
+  );
 
+/** Format an ISO date in the active locale. */
 export const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("vi-VN", {
+  new Date(iso).toLocaleDateString(LOCALE_BCP47[getActiveLocale()], {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

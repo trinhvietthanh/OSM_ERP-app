@@ -1,17 +1,15 @@
-import * as React from "react";
+"use client";
 
 import { cn } from "@/lib/utils";
-import {
-  ORDER_STATUS_LABELS,
-  STATUS_STYLE,
-  type OrderStatus,
-} from "@/lib/orders";
+import { orderStatusLabel, STATUS_STYLE, type OrderStatus } from "@/lib/orders";
+import { useI18n } from "@/components/i18n-provider";
 
 /**
  * Colored status chip — each `OrderStatus` gets a distinct hue (amber, violet,
  * sky, …) plus a leading dot, so the order list is scannable at a glance.
  * Coloring lives in `STATUS_STYLE` (lib/orders.ts) so it stays next to the
- * labels; this component just renders it.
+ * labels; this component just renders it. Subscribes to the locale so the label
+ * re-renders when the language changes.
  */
 export function StatusBadge({
   status,
@@ -22,6 +20,9 @@ export function StatusBadge({
   size?: "sm" | "md";
   className?: string;
 }) {
+  // Subscribe so the label updates on locale change (the helper reads the
+  // active-locale singleton).
+  useI18n();
   const style = STATUS_STYLE[status];
   return (
     <span
@@ -37,7 +38,7 @@ export function StatusBadge({
         aria-hidden
         className={cn("size-1.5 rounded-full", style.dot)}
       />
-      {ORDER_STATUS_LABELS[status]}
+      {orderStatusLabel(status)}
     </span>
   );
 }

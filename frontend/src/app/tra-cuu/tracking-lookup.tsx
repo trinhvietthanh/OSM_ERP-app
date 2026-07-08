@@ -8,9 +8,9 @@ import { Check, PackageSearch, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api";
 import {
-  ORDER_STATUS_LABELS,
   formatDate,
   formatMoney,
+  orderStatusLabel,
   toNumber,
   trackOrder,
   type OrderStatus,
@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent } from "@/components/ui/card";
+import { useI18n } from "@/components/i18n-provider";
 
 /** Milestones shown on the public timeline (cancelled handled separately). */
 const TIMELINE: OrderStatus[] = [
@@ -31,10 +32,11 @@ const TIMELINE: OrderStatus[] = [
 ];
 
 /**
- * Public order lookup (khách hàng, không cần tài khoản). The code can be
- * passed as `?code=` so the shop can send a direct link.
+ * Public order lookup (customers, no account needed). The code can be passed as
+ * `?code=` so the shop can send a direct link.
  */
 export function TrackingLookup() {
+  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlCode = (searchParams.get("code") ?? "").trim().toUpperCase();
@@ -62,11 +64,11 @@ export function TrackingLookup() {
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-6 px-4 py-10">
       <div className="text-center">
         <p className="text-sm font-semibold tracking-wide text-muted-foreground">
-          App ERP
+          {t("nav.appName")}
         </p>
-        <h1 className="mt-1 text-2xl font-semibold">Tra cứu đơn hàng</h1>
+        <h1 className="mt-1 text-2xl font-semibold">{t("tracking.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Nhập mã Code shop đã gửi cho bạn để xem tình trạng đơn.
+          {t("tracking.subtitle")}
         </p>
       </div>
 
@@ -79,15 +81,15 @@ export function TrackingLookup() {
           <Input
             value={input}
             onChange={(event) => setInput(event.target.value.toUpperCase())}
-            placeholder="Ví dụ: XK7M2A9B"
-            aria-label="Mã Code đơn hàng"
+            placeholder={t("tracking.placeholder")}
+            aria-label={t("tracking.codeAria")}
             className="pl-9 font-mono uppercase tracking-widest"
             maxLength={8}
             autoFocus
           />
         </div>
         <Button type="submit" disabled={!input.trim() || isFetching}>
-          {isFetching ? "Đang tìm…" : "Tra cứu"}
+          {isFetching ? t("tracking.searching") : t("tracking.search")}
         </Button>
       </form>
 
@@ -95,17 +97,15 @@ export function TrackingLookup() {
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
             <PackageSearch className="size-8 text-muted-foreground" aria-hidden />
-            <p className="font-medium">Không tìm thấy đơn với mã “{urlCode}”</p>
+            <p className="font-medium">{t("tracking.notFound", { code: urlCode })}</p>
             <p className="text-sm text-muted-foreground">
-              Kiểm tra lại mã Code (8 ký tự) hoặc liên hệ shop nhé.
+              {t("tracking.notFoundHint")}
             </p>
           </CardContent>
         </Card>
       )}
       {isError && !notFound && (
-        <p className="text-center text-sm text-destructive">
-          Có lỗi xảy ra, vui lòng thử lại.
-        </p>
+        <p className="text-center text-sm text-destructive">{t("tracking.error")}</p>
       )}
 
       {data && (
@@ -117,8 +117,8 @@ export function TrackingLookup() {
                   {data.tracking_code}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Đặt ngày {formatDate(data.created_at)} · cập nhật{" "}
-                  {formatDate(data.updated_at)}
+                  {t("tracking.createdOn", { date: formatDate(data.created_at) })}{" "}
+                  · {t("tracking.updated", { date: formatDate(data.updated_at) })}
                 </p>
               </div>
             </div>
@@ -126,7 +126,7 @@ export function TrackingLookup() {
             {/* Status timeline */}
             {data.status === "cancelled" ? (
               <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
-                Đơn đã hủy
+                {t("tracking.cancelledNotice")}
               </p>
             ) : (
               <ol className="space-y-0">
@@ -167,10 +167,10 @@ export function TrackingLookup() {
                               : "text-muted-foreground",
                         )}
                       >
-                        {ORDER_STATUS_LABELS[step]}
+                        {orderStatusLabel(step)}
                         {current && (
                           <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                            Hiện tại
+                            {t("tracking.current")}
                           </span>
                         )}
                       </p>
@@ -199,19 +199,19 @@ export function TrackingLookup() {
             {/* Money */}
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Tổng tiền</span>
+                <span className="text-muted-foreground">{t("tracking.total")}</span>
                 <span className="font-semibold tabular-nums">
                   {formatMoney(data.total_amount)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Đã thanh toán</span>
+                <span className="text-muted-foreground">{t("tracking.paid")}</span>
                 <span className="tabular-nums">
                   {formatMoney(data.total_collected)}
                 </span>
               </div>
               <div className="flex justify-between font-medium">
-                <span>Còn lại khi nhận hàng</span>
+                <span>{t("tracking.dueOnDelivery")}</span>
                 <span
                   className={cn(
                     "tabular-nums",

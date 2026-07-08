@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -22,18 +22,25 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { ApiError, login } from "@/lib/api";
-
-// Zod schema — single source of truth for validation + types.
-const schema = z.object({
-  email: z.email("Enter a valid email address."),
-  password: z.string().min(8, "Password must be at least 8 characters."),
-});
-
-type FormValues = z.infer<typeof schema>;
+import { useI18n } from "@/components/i18n-provider";
 
 export function LoginForm() {
   const router = useRouter();
+  const { t, locale } = useI18n();
   const [showPassword, setShowPassword] = useState(false);
+
+  // Zod schema — single source of truth for validation + types. Built in-component
+  // so the messages localize with the active locale.
+  const schema = useMemo(
+    () =>
+      z.object({
+        email: z.email(t("login.errors.email")),
+        password: z.string().min(8, t("login.errors.password")),
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [locale],
+  );
+  type FormValues = z.infer<typeof schema>;
 
   const form = useForm<FormValues>({
     resolver: standardSchemaResolver(schema),
@@ -43,14 +50,14 @@ export function LoginForm() {
   const mutation = useMutation({
     mutationFn: (values: FormValues) => login(values),
     onSuccess: () => {
-      toast.success("Signed in — welcome back!");
+      toast.success(t("login.toast.ok"));
       router.push("/");
     },
     onError: (error: Error) => {
       const message =
         error instanceof ApiError && error.status === 401
-          ? "Invalid email or password."
-          : error.message || "Could not sign in. Please try again.";
+          ? t("login.toast.invalid")
+          : error.message || t("login.toast.fail");
       toast.error(message);
     },
   });
@@ -66,11 +73,11 @@ export function LoginForm() {
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>{t("login.email")}</FormLabel>
               <FormControl>
                 <Input
                   type="email"
-                  placeholder="ada@example.com"
+                  placeholder={t("login.emailPlaceholder")}
                   autoComplete="email"
                   {...field}
                 />
@@ -86,19 +93,19 @@ export function LoginForm() {
           render={({ field }) => (
             <FormItem>
               <div className="flex items-center justify-between">
-                <FormLabel>Password</FormLabel>
+                <FormLabel>{t("login.password")}</FormLabel>
                 <Link
                   href="#"
                   className="text-xs font-medium text-primary hover:underline"
                 >
-                  Forgot password?
+                  {t("login.forgot")}
                 </Link>
               </div>
               <div className="relative">
                 <FormControl>
                   <Input
                     type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
+                    placeholder={t("login.passwordPlaceholder")}
                     autoComplete="current-password"
                     className="pr-9"
                     {...field}
@@ -107,7 +114,9 @@ export function LoginForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((show) => !show)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={
+                    showPassword ? t("login.hidePw") : t("login.showPw")
+                  }
                   aria-pressed={showPassword}
                   className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
                 >
@@ -130,7 +139,7 @@ export function LoginForm() {
             className="size-4 rounded border-input text-primary accent-primary"
           />
           <Label htmlFor="remember" className="text-sm text-muted-foreground">
-            Remember me
+            {t("login.remember")}
           </Label>
         </div>
 
@@ -139,7 +148,7 @@ export function LoginForm() {
           className="w-full gap-1.5"
           disabled={mutation.isPending}
         >
-          {mutation.isPending ? "Signing in…" : "Sign in"}
+          {mutation.isPending ? t("login.submitting") : t("login.submit")}
           {!mutation.isPending && <ArrowRight aria-hidden />}
         </Button>
       </form>

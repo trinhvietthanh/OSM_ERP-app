@@ -32,13 +32,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useI18n } from "@/components/i18n-provider";
 
 /**
- * Gom đơn: pick confirmed/pending orders (not giao riêng, not already in a
+ * Consolidation: pick confirmed/pending orders (not separate, not already in a
  * trip) and attach them to a buying trip — either an existing PLANNING trip
  * or a new one created inline.
  */
 export function ConsolidateOrders() {
+  const { t } = useI18n();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -102,8 +104,8 @@ export function ConsolidateOrders() {
           shopper_name: shopper.trim(),
         });
       } else {
-        const existing = planningTrips.find((t) => t.id === tripChoice);
-        if (!existing) throw new Error("Chuyến không còn ở trạng thái lên kế hoạch.");
+        const existing = planningTrips.find((item) => item.id === tripChoice);
+        if (!existing) throw new Error(t("orders.consolidate.notPlanning"));
         trip = existing;
       }
       await attachOrders(
@@ -114,7 +116,10 @@ export function ConsolidateOrders() {
     },
     onSuccess: (trip) => {
       toast.success(
-        `Đã gom ${selectedOrders.length} đơn vào chuyến ${trip.code}`,
+        t("orders.consolidate.toastConsolidated", {
+          count: selectedOrders.length,
+          code: trip.code,
+        }),
       );
       setSelected(new Set());
       invalidate();
@@ -127,11 +132,11 @@ export function ConsolidateOrders() {
   const reincludeMutation = useMutation({
     mutationFn: (id: string) => updateOrder(id, { is_separate: false }),
     onSuccess: () => {
-      toast.success("Đơn đã có thể gom chuyến");
+      toast.success(t("orders.consolidate.toastReinclude"));
       invalidate();
     },
     onError: (err: Error) =>
-      toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra"),
+      toast.error(err instanceof ApiError ? err.message : t("common.errorOccurred")),
   });
 
   function toggle(id: string) {
@@ -158,15 +163,15 @@ export function ConsolidateOrders() {
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>Đơn chờ gom</CardTitle>
+            <CardTitle>{t("orders.consolidate.titleWaiting")}</CardTitle>
             <CardDescription>
-              Chọn nhiều đơn (khác khách) để gom vào một chuyến hàng.
+              {t("orders.consolidate.descWaiting")}
             </CardDescription>
           </CardHeader>
           <CardContent className="divide-y divide-border">
             {eligible.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                Không có đơn phù hợp để gom.
+                {t("orders.consolidate.emptyWaiting")}
               </p>
             ) : (
               eligible.map((o) => {
@@ -190,8 +195,11 @@ export function ConsolidateOrders() {
                         </span>
                       </div>
                       <p className="truncate text-xs text-muted-foreground">
-                        {o.tracking_code} · {o.lines.length} dòng ·{" "}
-                        {formatDate(o.created_at)}
+                        {o.tracking_code} ·{" "}
+                        {t("orders.consolidate.lineCount", {
+                          count: o.lines.length,
+                        })}{" "}
+                        · {formatDate(o.created_at)}
                       </p>
                     </div>
                   </label>
@@ -203,15 +211,15 @@ export function ConsolidateOrders() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Đơn giao riêng</CardTitle>
+            <CardTitle>{t("orders.consolidate.titleSeparate")}</CardTitle>
             <CardDescription>
-              Khách yêu cầu không gom — tách khỏi chuyến gom chung.
+              {t("orders.consolidate.descSeparate")}
             </CardDescription>
           </CardHeader>
           <CardContent className="divide-y divide-border">
             {separateOrders.length === 0 ? (
               <p className="py-2 text-sm text-muted-foreground">
-                Không có đơn giao riêng.
+                {t("orders.consolidate.emptySeparate")}
               </p>
             ) : (
               separateOrders.map((o) => (
@@ -231,7 +239,7 @@ export function ConsolidateOrders() {
                     disabled={reincludeMutation.isPending}
                     onClick={() => reincludeMutation.mutate(o.id)}
                   >
-                    Cho gom lại
+                    {t("orders.consolidate.reinclude")}
                   </Button>
                 </div>
               ))
@@ -244,21 +252,23 @@ export function ConsolidateOrders() {
       <div className="mt-4 lg:sticky lg:top-20 lg:mt-0">
         <Card>
           <CardHeader>
-            <CardTitle>Chuyến hàng</CardTitle>
+            <CardTitle>{t("orders.consolidate.titleTrip")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="trip-choice">Gom vào chuyến</Label>
+              <Label htmlFor="trip-choice">
+                {t("orders.consolidate.tripSelect")}
+              </Label>
               <select
                 id="trip-choice"
                 value={tripChoice}
                 onChange={(event) => setTripChoice(event.target.value)}
                 className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
               >
-                <option value="new">+ Tạo chuyến mới</option>
-                {planningTrips.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.code} — {t.name}
+                <option value="new">{t("orders.consolidate.newTrip")}</option>
+                {planningTrips.map((trip) => (
+                  <option key={trip.id} value={trip.id}>
+                    {trip.code} — {trip.name}
                   </option>
                 ))}
               </select>
@@ -269,20 +279,20 @@ export function ConsolidateOrders() {
                 <Input
                   value={code}
                   onChange={(event) => setCode(event.target.value)}
-                  placeholder="Mã chuyến (vd JP-2026-07)"
-                  aria-label="Mã chuyến"
+                  placeholder={t("orders.consolidate.codePh")}
+                  aria-label={t("orders.consolidate.codeAria")}
                 />
                 <Input
                   value={name}
                   onChange={(event) => setName(event.target.value)}
-                  placeholder="Tên chuyến (vd Chuyến Nhật tháng 7)"
-                  aria-label="Tên chuyến"
+                  placeholder={t("orders.consolidate.namePh")}
+                  aria-label={t("orders.consolidate.nameAria")}
                 />
                 <Input
                   value={shopper}
                   onChange={(event) => setShopper(event.target.value)}
-                  placeholder="Người xách tay (tùy chọn)"
-                  aria-label="Người xách tay"
+                  placeholder={t("orders.consolidate.shopperPh")}
+                  aria-label={t("orders.consolidate.shopperAria")}
                 />
               </div>
             )}
@@ -291,18 +301,22 @@ export function ConsolidateOrders() {
 
             {selectedOrders.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Chọn các đơn bên trái để xem danh sách cần mua gộp.
+                {t("orders.consolidate.selectHint")}
               </p>
             ) : (
               <>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Số đơn</span>
+                  <span className="text-muted-foreground">
+                    {t("orders.consolidate.orderCount")}
+                  </span>
                   <span className="font-medium tabular-nums">
                     {selectedOrders.length}
                   </span>
                 </div>
                 <div className="text-sm">
-                  <span className="text-muted-foreground">Khách: </span>
+                  <span className="text-muted-foreground">
+                    {t("orders.consolidate.customerPrefix")}
+                  </span>
                   <span className="font-medium">{customers.join(", ")}</span>
                 </div>
                 <Separator />
@@ -321,7 +335,9 @@ export function ConsolidateOrders() {
                 </ul>
                 <Separator />
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Tổng tiền</span>
+                  <span className="text-sm font-medium">
+                    {t("orders.money.total")}
+                  </span>
                   <span className="font-semibold tabular-nums">
                     {formatMoney(grandTotal)}
                   </span>
@@ -335,8 +351,10 @@ export function ConsolidateOrders() {
               onClick={() => consolidateMutation.mutate()}
             >
               {consolidateMutation.isPending
-                ? "Đang gom…"
-                : `Gom vào chuyến (${selectedOrders.length})`}
+                ? t("orders.consolidate.consolidatePending")
+                : t("orders.consolidate.consolidateBtn", {
+                    count: selectedOrders.length,
+                  })}
             </Button>
           </CardContent>
         </Card>

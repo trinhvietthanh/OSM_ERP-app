@@ -1,39 +1,20 @@
-from datetime import date, datetime, time, timedelta
+from datetime import date
 from decimal import Decimal
 
 from src.modules.customer.domain.repository import AbstractCustomerRepository
 from src.modules.organization.domain.value_objects.organization import OrganizationId
-from src.modules.purchase.domain.entities.order import Order
 from src.modules.purchase.domain.repository import AbstractOrderRepository
-from src.modules.purchase.domain.value_objects.order import OrderStatus
 from src.modules.report.application.dto.report import (
     OrderProfitRead,
     ProfitReportRead,
     q2,
 )
+from src.modules.report.application.queries._shared import (
+    EXCLUDED,
+    in_period,
+    order_cost,
+)
 from src.modules.trip.domain.value_objects.trip import TripId
-
-#: Orders that never generated revenue are excluded from profit.
-_EXCLUDED = frozenset({OrderStatus.CANCELLED})
-
-
-def _order_cost(order: Order) -> tuple[Decimal, bool]:
-    """Actual spend on an order = Σ purchased_qty × actual_unit_cost.
-
-    Returns (cost, complete): *complete* is False while any sold quantity has
-    no recorded actual cost yet.
-    """
-    cost = Decimal("0")
-    complete = True
-    for line in order.lines:
-        if line.actual_unit_cost is not None:
-            cost += line.actual_unit_cost.amount * line.purchased_quantity
-        if (
-            line.purchased_quantity < line.quantity.value
-            or line.actual_unit_cost is None
-        ):
-            complete = False
-    return cost, complete
 
 
 class ProfitReport:
@@ -70,16 +51,13 @@ class ProfitReport:
         incomplete = 0
 
         for order in orders:
-            if order.status in _EXCLUDED:
+            if order.status in EXCLUDED:
                 continue
-            created = order.created_at
-            if date_from is not None and created < _day_start(date_from, created):
-                continue
-            if date_to is not None and created >= _day_end(date_to, created):
+            if not in_period(order.created_at, date_from, date_to):
                 continue
 
             revenue = order.total_amount
-            cost, complete = _order_cost(order)
+            cost, complete = order_cost(order)
             profit = revenue - cost
             if not complete:
                 incomplete += 1
@@ -112,11 +90,3 @@ class ProfitReport:
             orders_count=len(rows),
             orders_with_incomplete_cost=incomplete,
         )
-
-
-def _day_start(day: date, like: datetime) -> datetime:
-    return datetime.combine(day, time.min, tzinfo=like.tzinfo)
-
-
-def _day_end(day: date, like: datetime) -> datetime:
-    return datetime.combine(day + timedelta(days=1), time.min, tzinfo=like.tzinfo)

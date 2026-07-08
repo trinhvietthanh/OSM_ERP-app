@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/components/i18n-provider";
 import {
   Table,
   TableBody,
@@ -26,13 +27,13 @@ import {
 import {
   CANCELLABLE,
   NEXT_ORDER_STATUS,
-  ORDER_STATUS_LABELS,
   STATUS_STYLE,
   addReceipt,
   changeOrderStatus,
   formatDate,
   formatMoney,
   listOrders,
+  orderStatusLabel,
   toNumber,
   type Order,
   type OrderStatus,
@@ -51,8 +52,9 @@ const FILTERS: ReadonlyArray<OrderStatus | "all"> = [
   "cancelled",
 ];
 
-/** Orders list panel (tab "Danh sách"). Reads `?q=` from the URL. */
+/** Orders list panel (tab "list"). Reads `?q=` from the URL. */
 export function OrdersList() {
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const urlQuery = searchParams.get("q") ?? "";
 
@@ -100,7 +102,7 @@ export function OrdersList() {
   if (isError) {
     return (
       <p className="py-10 text-center text-sm text-destructive">
-        Không tải được danh sách đơn: {(error as Error).message}
+        {t("orders.listError", { message: (error as Error).message })}
       </p>
     );
   }
@@ -120,7 +122,7 @@ export function OrdersList() {
               onClick={() => setStatus(value)}
               className="shrink-0 gap-1.5"
             >
-              {value === "all" ? "Tất cả" : ORDER_STATUS_LABELS[value]}
+              {value === "all" ? t("common.all") : orderStatusLabel(value)}
               <span
                 className={cn(
                   "rounded-full px-1.5 text-xs tabular-nums",
@@ -145,7 +147,7 @@ export function OrdersList() {
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Tìm theo mã Code hoặc tên khách"
+          placeholder={t("orders.searchPlaceholder")}
           className="pl-9"
           inputMode="search"
         />
@@ -156,12 +158,16 @@ export function OrdersList() {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="w-28">Mã Code</TableHead>
-              <TableHead>Khách hàng</TableHead>
-              <TableHead className="w-28">Ngày tạo</TableHead>
-              <TableHead className="w-32 text-right">Tổng tiền</TableHead>
-              <TableHead className="w-32 text-right">Còn lại</TableHead>
-              <TableHead className="w-44">Trạng thái</TableHead>
+              <TableHead className="w-28">{t("orders.col.code")}</TableHead>
+              <TableHead>{t("orders.col.customer")}</TableHead>
+              <TableHead className="w-28">{t("orders.col.createdAt")}</TableHead>
+              <TableHead className="w-32 text-right">
+                {t("orders.col.total")}
+              </TableHead>
+              <TableHead className="w-32 text-right">
+                {t("orders.col.remaining")}
+              </TableHead>
+              <TableHead className="w-44">{t("orders.col.status")}</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
@@ -195,8 +201,16 @@ export function OrdersList() {
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-1">
                       <StatusBadge status={o.status} />
-                      {o.trip_id && <Badge variant="secondary">Đã gom</Badge>}
-                      {o.is_separate && <Badge variant="outline">Riêng</Badge>}
+                      {o.trip_id && (
+                        <Badge variant="secondary">
+                          {t("orders.badge.consolidated")}
+                        </Badge>
+                      )}
+                      {o.is_separate && (
+                        <Badge variant="outline">
+                          {t("orders.badge.separate")}
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
@@ -222,7 +236,7 @@ export function OrdersList() {
                   colSpan={7}
                   className="py-10 text-center text-muted-foreground"
                 >
-                  Không có đơn nào phù hợp.
+                  {t("orders.empty")}
                 </TableCell>
               </TableRow>
             )}
@@ -254,7 +268,9 @@ export function OrdersList() {
                     </p>
                     {(o.trip_id || o.is_separate) && (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {o.trip_id ? "Đã gom chuyến" : "Giao riêng"}
+                        {o.trip_id
+                          ? t("orders.card.consolidated")
+                          : t("orders.card.separate")}
                       </p>
                     )}
                   </div>
@@ -265,7 +281,9 @@ export function OrdersList() {
                     <StatusBadge status={o.status} size="sm" />
                     {remaining > 0 && (
                       <span className="text-xs font-medium text-primary tabular-nums">
-                        còn {formatMoney(o.remaining)}
+                        {t("orders.remainingCaption", {
+                          money: formatMoney(o.remaining),
+                        })}
                       </span>
                     )}
                   </div>
@@ -282,7 +300,7 @@ export function OrdersList() {
 
         {filtered.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">
-            Không có đơn nào phù hợp.
+            {t("orders.empty")}
           </p>
         )}
       </div>
@@ -290,14 +308,9 @@ export function OrdersList() {
   );
 }
 
-const METHOD_LABELS: Record<ReceiptMethod, string> = {
-  cash: "Tiền mặt",
-  bank_transfer: "Chuyển khoản",
-  other: "Khác",
-};
-
 /** Expanded order detail: lines, receipts, collect-money form, status actions. */
 function OrderDetail({ order }: { order: Order }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<ReceiptMethod>("cash");
@@ -308,27 +321,41 @@ function OrderDetail({ order }: { order: Order }) {
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["orders"] });
 
+  const methodLabel = (m: ReceiptMethod) =>
+    m === "cash"
+      ? t("method.cash")
+      : m === "bank_transfer"
+        ? t("method.bank")
+        : t("method.other");
+
   const statusMutation = useMutation({
     mutationFn: (status: OrderStatus) => changeOrderStatus(order.id, status),
     onSuccess: (updated) => {
       toast.success(
-        `Đơn ${updated.tracking_code}: ${ORDER_STATUS_LABELS[updated.status]}`,
+        t("orders.toast.status", {
+          code: updated.tracking_code,
+          status: orderStatusLabel(updated.status),
+        }),
       );
       invalidate();
     },
     onError: (err: Error) =>
-      toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra"),
+      toast.error(err instanceof ApiError ? err.message : t("common.errorOccurred")),
   });
 
   const receiptMutation = useMutation({
     mutationFn: () => addReceipt(order.id, { amount, method, kind }),
     onSuccess: () => {
-      toast.success(kind === "refund" ? "Đã ghi phiếu hoàn" : "Đã ghi phiếu thu");
+      toast.success(
+        kind === "refund"
+          ? t("orders.toast.receiptRefund")
+          : t("orders.toast.receiptCollect"),
+      );
       setAmount("");
       invalidate();
     },
     onError: (err: Error) =>
-      toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra"),
+      toast.error(err instanceof ApiError ? err.message : t("common.errorOccurred")),
   });
 
   const next = NEXT_ORDER_STATUS[order.status];
@@ -338,7 +365,7 @@ function OrderDetail({ order }: { order: Order }) {
       {/* Lines */}
       <div className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Dòng hàng
+          {t("orders.section.lines")}
         </p>
         <ul className="space-y-1.5 text-sm">
           {order.lines.map((line) => (
@@ -356,23 +383,27 @@ function OrderDetail({ order }: { order: Order }) {
         <Separator />
         <div className="space-y-1 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Tổng tiền</span>
+            <span className="text-muted-foreground">{t("orders.money.total")}</span>
             <span className="font-semibold tabular-nums">
               {formatMoney(order.total_amount)}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Cọc yêu cầu</span>
+            <span className="text-muted-foreground">
+              {t("orders.money.depositDue")}
+            </span>
             <span className="tabular-nums">{formatMoney(order.deposit_due)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Đã thu</span>
+            <span className="text-muted-foreground">
+              {t("orders.money.collected")}
+            </span>
             <span className="tabular-nums">
               {formatMoney(order.total_collected)}
             </span>
           </div>
           <div className="flex justify-between font-medium">
-            <span>Còn lại</span>
+            <span>{t("orders.money.remaining")}</span>
             <span
               className={cn(
                 "tabular-nums",
@@ -393,17 +424,19 @@ function OrderDetail({ order }: { order: Order }) {
       {/* Receipts + actions */}
       <div className="space-y-3">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Phiếu thu
+          {t("orders.section.receipts")}
         </p>
         {order.receipts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Chưa thu khoản nào.</p>
+          <p className="text-sm text-muted-foreground">
+            {t("orders.receiptsEmpty")}
+          </p>
         ) : (
           <ul className="space-y-1.5 text-sm">
             {order.receipts.map((r) => (
               <li key={r.id} className="flex items-center justify-between gap-2">
                 <span className="text-muted-foreground">
-                  {formatDate(r.received_at)} · {METHOD_LABELS[r.method]}
-                  {r.kind === "refund" ? " · Hoàn tiền" : ""}
+                  {formatDate(r.received_at)} · {methodLabel(r.method)}
+                  {r.kind === "refund" ? ` · ${t("orders.refund")}` : ""}
                   {r.note ? ` · ${r.note}` : ""}
                 </span>
                 <span
@@ -421,12 +454,12 @@ function OrderDetail({ order }: { order: Order }) {
         )}
         {toNumber(order.total_refunded) > 0 && (
           <p className="text-xs text-muted-foreground">
-            Đã hoàn {formatMoney(order.total_refunded)} cho khách.
+            {t("orders.totalRefunded", { money: formatMoney(order.total_refunded) })}
           </p>
         )}
 
-        {/* Thu tiền khi đơn còn sống và còn thiếu; hoàn tiền khi còn giữ tiền
-            của khách (kể cả đơn đã hủy — hoàn cọc). */}
+        {/* Collect while the order is alive and owed; refund while it still
+            holds the customer's money (even cancelled orders — deposit refund). */}
         {((order.status !== "cancelled" && toNumber(order.remaining) > 0) ||
           toNumber(order.total_collected) > 0) && (
           <form
@@ -439,14 +472,14 @@ function OrderDetail({ order }: { order: Order }) {
             <select
               value={kind}
               onChange={(event) => setKind(event.target.value as ReceiptKind)}
-              aria-label="Loại phiếu"
+              aria-label={t("orders.receiptKindAria")}
               className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
             >
               {order.status !== "cancelled" && (
-                <option value="collection">Thu tiền</option>
+                <option value="collection">{t("orders.collect")}</option>
               )}
               {toNumber(order.total_collected) > 0 && (
-                <option value="refund">Hoàn tiền</option>
+                <option value="refund">{t("orders.refund")}</option>
               )}
             </select>
             <Input
@@ -455,8 +488,8 @@ function OrderDetail({ order }: { order: Order }) {
               step={1000}
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-              placeholder="Số tiền"
-              aria-label="Số tiền"
+              placeholder={t("orders.amountPlaceholder")}
+              aria-label={t("orders.amountAria")}
               className="w-32"
             />
             {kind === "collection" && toNumber(order.remaining) > 0 && (
@@ -466,7 +499,7 @@ function OrderDetail({ order }: { order: Order }) {
                 variant="secondary"
                 onClick={() => setAmount(String(toNumber(order.remaining)))}
               >
-                Thu hết
+                {t("orders.collectAll")}
               </Button>
             )}
             <select
@@ -474,12 +507,12 @@ function OrderDetail({ order }: { order: Order }) {
               onChange={(event) =>
                 setMethod(event.target.value as ReceiptMethod)
               }
-              aria-label="Hình thức"
+              aria-label={t("orders.methodAria")}
               className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
             >
-              <option value="cash">Tiền mặt</option>
-              <option value="bank_transfer">Chuyển khoản</option>
-              <option value="other">Khác</option>
+              <option value="cash">{t("method.cash")}</option>
+              <option value="bank_transfer">{t("method.bank")}</option>
+              <option value="other">{t("method.other")}</option>
             </select>
             <Button
               type="submit"
@@ -488,25 +521,29 @@ function OrderDetail({ order }: { order: Order }) {
               disabled={receiptMutation.isPending || Number(amount) <= 0}
             >
               {receiptMutation.isPending
-                ? "Đang lưu…"
+                ? t("common.saving")
                 : kind === "refund"
-                  ? "Hoàn tiền"
-                  : "Thu tiền"}
+                  ? t("orders.refund")
+                  : t("orders.collect")}
             </Button>
           </form>
         )}
 
         <div className="flex flex-wrap gap-2 pt-1">
-          {next && !(order.trip_id && ["confirmed", "purchasing"].includes(order.status)) && (
-            <Button
-              size="sm"
-              variant="default"
-              disabled={statusMutation.isPending}
-              onClick={() => statusMutation.mutate(next)}
-            >
-              → {ORDER_STATUS_LABELS[next]}
-            </Button>
-          )}
+          {next &&
+            !(
+              order.trip_id &&
+              ["confirmed", "purchasing"].includes(order.status)
+            ) && (
+              <Button
+                size="sm"
+                variant="default"
+                disabled={statusMutation.isPending}
+                onClick={() => statusMutation.mutate(next)}
+              >
+                {t("orders.advance", { status: orderStatusLabel(next) })}
+              </Button>
+            )}
           {CANCELLABLE.has(order.status) && !order.trip_id && (
             <Button
               size="sm"
@@ -514,14 +551,16 @@ function OrderDetail({ order }: { order: Order }) {
               disabled={statusMutation.isPending}
               onClick={() => statusMutation.mutate("cancelled")}
             >
-              Hủy đơn
+              {t("orders.cancelOrder")}
             </Button>
           )}
         </div>
         {order.trip_id && (
           <p className="text-xs text-muted-foreground">
-            Đơn thuộc một chuyến hàng — trạng thái Đang mua/Đã về VN sẽ tự cập
-            nhật theo chuyến.
+            {t("orders.tripNotice", {
+              purchasing: orderStatusLabel("purchasing"),
+              arrived: orderStatusLabel("arrived"),
+            })}
           </p>
         )}
       </div>

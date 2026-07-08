@@ -2,6 +2,8 @@
 
 import { apiFetch } from "@/lib/api";
 import type { Order } from "@/lib/orders";
+import { dictionaries } from "@/lib/i18n/dictionaries";
+import { getActiveLocale } from "@/lib/i18n/config";
 
 export type TripStatus =
   | "planning"
@@ -25,14 +27,10 @@ export type Trip = {
   updated_at: string;
 };
 
-export const TRIP_STATUS_LABELS: Record<TripStatus, string> = {
-  planning: "Lên kế hoạch",
-  buying: "Đang mua",
-  shipping: "Đang vận chuyển",
-  arrived: "Đã về VN",
-  completed: "Hoàn tất",
-  cancelled: "Đã hủy",
-};
+/** Localized label for a trip status, in the active locale. */
+export function tripStatusLabel(status: TripStatus): string {
+  return dictionaries[getActiveLocale()].statuses.trip[status];
+}
 
 export const TRIP_STATUS_VARIANT: Record<
   TripStatus,

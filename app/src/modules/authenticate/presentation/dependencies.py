@@ -1,4 +1,5 @@
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.exceptions import InvalidTokenError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +29,14 @@ def _credentials_error() -> HTTPException:
         detail="Could not validate credentials.",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+
+# Declares the Bearer security scheme in the OpenAPI spec — this is what makes
+# the 🔒 "Authorize" button appear in Swagger UI (/docs) and attaches a security
+# requirement to every route depending on ``get_current_user``. ``auto_error``
+# is off so we keep raising our own 401 (with WWW-Authenticate) instead of
+# HTTPBearer's default 403 on a missing/malformed header.
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_user_repository(
@@ -60,7 +69,7 @@ def get_login_use_case(
 
 
 async def get_current_user(
-    authorization: str | None = Header(None),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     token_service: AbstractTokenService = Depends(get_token_service),
     users: AbstractUserRepository = Depends(get_user_repository),
 ) -> User:
@@ -70,13 +79,10 @@ async def get_current_user(
         invalid/expired, or the user no longer exists / is inactive.
     """
     error = _credentials_error()
-    if not authorization:
-        raise error
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
+    if credentials is None or not credentials.credentials:
         raise error
     try:
-        claims = token_service.decode(token)
+        claims = token_service.decode(credentials.credentials)
     except InvalidTokenError:
         raise error from None
     if claims.get("type") != "access" or not claims.get("sub"):

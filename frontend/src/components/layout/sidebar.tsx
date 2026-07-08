@@ -8,10 +8,12 @@ import { cn } from "@/lib/utils";
 import { NAV_ITEMS, isNavActive } from "@/lib/nav";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/components/i18n-provider";
 
 /** Desktop-only left navigation rail. Hidden below the `lg` breakpoint. */
 export function Sidebar() {
   const pathname = usePathname();
+  const { t } = useI18n();
 
   return (
     <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border bg-background lg:flex">
@@ -19,14 +21,16 @@ export function Sidebar() {
         <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <LayoutGrid className="size-4.5" aria-hidden />
         </span>
-        <span className="text-base font-semibold tracking-tight">App ERP</span>
+        <span className="text-base font-semibold tracking-tight">
+          {t("nav.appName")}
+        </span>
       </div>
 
-      <nav aria-label="Primary" className="flex-1 space-y-1 p-3">
+      <nav aria-label={t("nav.ariaPrimary")} className="flex-1 space-y-1 p-3">
         <Button asChild className="mb-2 w-full gap-1.5">
           <Link href="/orders?tab=create">
             <Plus aria-hidden />
-            New order
+            {t("nav.newOrder")}
           </Link>
         </Button>
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
@@ -44,7 +48,7 @@ export function Sidebar() {
               )}
             >
               <Icon className="size-4.5" aria-hidden />
-              {label}
+              {t(label)}
             </Link>
           );
         })}

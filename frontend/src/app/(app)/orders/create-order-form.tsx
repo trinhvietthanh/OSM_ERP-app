@@ -20,6 +20,7 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SearchSelect } from "@/components/ui/search-select";
+import { useI18n } from "@/components/i18n-provider";
 
 type LineDraft = {
   product_id: string;
@@ -47,13 +48,14 @@ function QtyStepper({
   value: number;
   onChange: (next: number) => void;
 }) {
+  const { t } = useI18n();
   const clamp = (n: number) =>
     Number.isFinite(n) && n >= 1 ? Math.trunc(n) : 1;
   return (
     <div className="inline-flex h-9 select-none items-center overflow-hidden rounded-lg border border-input bg-background">
       <button
         type="button"
-        aria-label="Giảm số lượng"
+        aria-label={t("orders.create.qtyMinus")}
         onClick={() => onChange(clamp(value - 1))}
         className="flex size-9 items-center justify-center text-muted-foreground transition-colors hover:bg-muted active:bg-muted/70"
       >
@@ -64,12 +66,12 @@ function QtyStepper({
         min={1}
         value={Number.isFinite(value) && value > 0 ? value : ""}
         onChange={(event) => onChange(clamp(event.target.valueAsNumber))}
-        aria-label="Số lượng"
+        aria-label={t("orders.create.qtyLabel")}
         className="h-9 w-10 border-x border-input bg-transparent text-center text-sm tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
       <button
         type="button"
-        aria-label="Tăng số lượng"
+        aria-label={t("orders.create.qtyPlus")}
         onClick={() => onChange(clamp(value + 1))}
         className="flex size-9 items-center justify-center text-muted-foreground transition-colors hover:bg-muted active:bg-muted/70"
       >
@@ -81,9 +83,9 @@ function QtyStepper({
 
 /**
  * Create-order form, fully API-driven: customers + products come from the
- * backend; prices/deposits are free-form per line (hàng xách tay — no fixed
- * catalog price); optional "thu cọc ngay" records the first receipt in the
- * same request.
+ * backend; prices/deposits are free-form per line (hand-carry goods — no fixed
+ * catalog price); an optional "collect deposit now" records the first receipt
+ * in the same request.
  */
 export function CreateOrderForm({
   onCreated,
@@ -92,6 +94,7 @@ export function CreateOrderForm({
   onCreated: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
 
   const { data: customers = [] } = useQuery({
@@ -147,7 +150,7 @@ export function CreateOrderForm({
     mutationFn: () =>
       createCustomer({ name: newName.trim(), phone: newPhone.trim() || undefined }),
     onSuccess: (customer) => {
-      toast.success(`Đã thêm khách ${customer.name}`);
+      toast.success(t("orders.create.toastCustomerAdded", { name: customer.name }));
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       setCustomerId(customer.id);
       setShowNewCustomer(false);
@@ -155,20 +158,23 @@ export function CreateOrderForm({
       setNewPhone("");
     },
     onError: (err: Error) =>
-      toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra"),
+      toast.error(err instanceof ApiError ? err.message : t("common.errorOccurred")),
   });
 
   const orderMutation = useMutation({
     mutationFn: (input: CreateOrderInput) => createOrder(input),
     onSuccess: (order) => {
       toast.success(
-        `Đã tạo đơn cho ${order.customer_name} — mã Code: ${order.tracking_code}`,
+        t("orders.create.toastOrderCreated", {
+          customer: order.customer_name,
+          code: order.tracking_code,
+        }),
       );
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       onCreated();
     },
     onError: (err: Error) =>
-      toast.error(err instanceof ApiError ? err.message : "Có lỗi xảy ra"),
+      toast.error(err instanceof ApiError ? err.message : t("common.errorOccurred")),
   });
 
   function updateLine(index: number, patch: Partial<LineDraft>) {
@@ -179,11 +185,11 @@ export function CreateOrderForm({
 
   function submit() {
     if (!customerId) {
-      setError("Vui lòng chọn khách hàng.");
+      setError(t("orders.create.errSelectCustomer"));
       return;
     }
     if (validLines.length === 0) {
-      setError("Thêm ít nhất một sản phẩm với số lượng và giá bán hợp lệ.");
+      setError(t("orders.create.errNoLines"));
       return;
     }
     setError(null);
@@ -200,7 +206,11 @@ export function CreateOrderForm({
       note: note.trim(),
       initial_receipt:
         Number(deposit) > 0
-          ? { amount: deposit, method: "bank_transfer", note: "Cọc khi tạo đơn" }
+          ? {
+              amount: deposit,
+              method: "bank_transfer",
+              note: t("orders.create.depositNote"),
+            }
           : null,
     });
   }
@@ -211,7 +221,7 @@ export function CreateOrderForm({
       <div className="space-y-4">
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Khách hàng</CardTitle>
+            <CardTitle>{t("orders.create.customerTitle")}</CardTitle>
             <Button
               type="button"
               variant="ghost"
@@ -220,7 +230,7 @@ export function CreateOrderForm({
               onClick={() => setShowNewCustomer((v) => !v)}
             >
               <UserPlus aria-hidden />
-              Thêm khách mới
+              {t("orders.create.addCustomer")}
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -229,14 +239,14 @@ export function CreateOrderForm({
                 <Input
                   value={newName}
                   onChange={(event) => setNewName(event.target.value)}
-                  placeholder="Tên khách"
-                  aria-label="Tên khách mới"
+                  placeholder={t("orders.create.customerNamePh")}
+                  aria-label={t("orders.create.customerNameAria")}
                 />
                 <Input
                   value={newPhone}
                   onChange={(event) => setNewPhone(event.target.value)}
-                  placeholder="Số điện thoại"
-                  aria-label="SĐT khách mới"
+                  placeholder={t("orders.create.phonePh")}
+                  aria-label={t("orders.create.phoneAria")}
                   inputMode="tel"
                 />
                 <Button
@@ -245,18 +255,20 @@ export function CreateOrderForm({
                   disabled={!newName.trim() || customerMutation.isPending}
                   onClick={() => customerMutation.mutate()}
                 >
-                  {customerMutation.isPending ? "Đang lưu…" : "Lưu khách"}
+                  {customerMutation.isPending
+                    ? t("common.saving")
+                    : t("orders.create.saveCustomer")}
                 </Button>
               </div>
             )}
             <div className="space-y-1.5">
-              <Label htmlFor="customer">Khách hàng</Label>
+              <Label htmlFor="customer">{t("orders.create.customerLabel")}</Label>
               <SearchSelect
                 items={customerItems}
                 value={customerId}
                 onChange={setCustomerId}
-                placeholder="Tìm theo tên hoặc số điện thoại…"
-                ariaLabel="Khách hàng"
+                placeholder={t("orders.create.customerSearchPh")}
+                ariaLabel={t("orders.create.customerSearchAria")}
                 invalid={!customerId && !!error}
               />
             </div>
@@ -276,14 +288,14 @@ export function CreateOrderForm({
                 className={cn("size-3.5", !separate && "opacity-0")}
                 aria-hidden
               />
-              Giao riêng — không gom đơn
+              {t("orders.create.separateToggle")}
             </button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Sản phẩm</CardTitle>
+            <CardTitle>{t("orders.create.productTitle")}</CardTitle>
             <Button
               type="button"
               variant="ghost"
@@ -292,7 +304,7 @@ export function CreateOrderForm({
               onClick={() => setLines((prev) => [...prev, emptyLine()])}
             >
               <Plus aria-hidden />
-              Thêm sản phẩm
+              {t("orders.create.addProduct")}
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -310,15 +322,15 @@ export function CreateOrderForm({
                       onChange={(product_id) =>
                         updateLine(index, { product_id })
                       }
-                      placeholder="Chọn sản phẩm…"
-                      ariaLabel="Sản phẩm"
+                      placeholder={t("orders.create.productSearchPh")}
+                      ariaLabel={t("orders.create.productSearchAria")}
                     />
                   </div>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Xóa dòng"
+                    aria-label={t("orders.create.deleteLineAria")}
                     className="shrink-0 text-muted-foreground hover:text-destructive"
                     onClick={() =>
                       setLines((prev) =>
@@ -335,7 +347,7 @@ export function CreateOrderForm({
                 <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-row sm:items-center">
                   <div className="col-span-2 flex items-center justify-between sm:col-span-1">
                     <span className="text-xs text-muted-foreground sm:hidden">
-                      Số lượng
+                      {t("orders.create.qtyCaption")}
                     </span>
                     <QtyStepper
                       value={line.qty}
@@ -345,8 +357,8 @@ export function CreateOrderForm({
                   <MoneyInput
                     value={line.unit_price}
                     onValueChange={(v) => updateLine(index, { unit_price: v })}
-                    placeholder="Giá bán"
-                    aria-label="Giá bán"
+                    placeholder={t("orders.create.pricePh")}
+                    aria-label={t("orders.create.priceAria")}
                     className="col-span-1 sm:w-32"
                   />
                   <MoneyInput
@@ -354,20 +366,20 @@ export function CreateOrderForm({
                     onValueChange={(v) =>
                       updateLine(index, { unit_deposit: v })
                     }
-                    placeholder="Cọc/món"
-                    aria-label="Tiền cọc mỗi món"
+                    placeholder={t("orders.create.depositPh")}
+                    aria-label={t("orders.create.depositAria")}
                     className="col-span-1 sm:w-32"
                   />
                 </div>
               </div>
             ))}
             <div className="space-y-1.5 pt-1">
-              <Label htmlFor="order-note">Ghi chú đơn</Label>
+              <Label htmlFor="order-note">{t("orders.create.noteLabel")}</Label>
               <Input
                 id="order-note"
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
-                placeholder="Ví dụ: khách cần trước 15/7…"
+                placeholder={t("orders.create.notePh")}
               />
             </div>
           </CardContent>
@@ -379,31 +391,41 @@ export function CreateOrderForm({
         <Card>
           <CardContent className="space-y-3 py-4">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Số dòng sản phẩm</span>
+              <span className="text-muted-foreground">
+                {t("orders.create.totalsLines")}
+              </span>
               <span className="font-medium tabular-nums">
                 {validLines.length}
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Tổng số lượng</span>
+              <span className="text-muted-foreground">
+                {t("orders.create.totalsQty")}
+              </span>
               <span className="font-medium tabular-nums">{totalQty}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Cọc yêu cầu</span>
+              <span className="text-muted-foreground">
+                {t("orders.create.totalsDeposit")}
+              </span>
               <span className="font-medium tabular-nums">
                 {formatMoney(depositDue)}
               </span>
             </div>
             <div className="border-t border-border pt-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Tổng tiền</span>
+                <span className="text-sm font-medium">
+                  {t("orders.create.totalsTotal")}
+                </span>
                 <span className="text-xl font-semibold tabular-nums">
                   {formatMoney(subtotal)}
                 </span>
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="deposit-now">Thu cọc ngay (ghi phiếu thu)</Label>
+              <Label htmlFor="deposit-now">
+                {t("orders.create.collectDeposit")}
+              </Label>
               <MoneyInput
                 id="deposit-now"
                 value={deposit}
@@ -414,14 +436,15 @@ export function CreateOrderForm({
               />
               {Number(deposit) > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Đơn sẽ chuyển sang <strong>Đã chốt</strong> sau khi thu cọc.
+                  {t("orders.create.depositHint", {
+                    status: t("statuses.order.confirmed"),
+                  })}
                 </p>
               )}
             </div>
             {separate && (
               <p className="rounded-lg bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">
-                Đơn này sẽ được đánh dấu <strong>giao riêng</strong> và không đưa
-                vào chuyến gom đơn.
+                {t("orders.create.separateHint")}
               </p>
             )}
           </CardContent>
@@ -437,7 +460,7 @@ export function CreateOrderForm({
             onClick={onCancel}
             disabled={orderMutation.isPending}
           >
-            Hủy
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
@@ -445,7 +468,9 @@ export function CreateOrderForm({
             onClick={submit}
             disabled={orderMutation.isPending}
           >
-            {orderMutation.isPending ? "Đang lưu…" : "Lưu đơn"}
+            {orderMutation.isPending
+              ? t("common.saving")
+              : t("orders.create.submitOrder")}
           </Button>
         </div>
       </div>
@@ -454,7 +479,9 @@ export function CreateOrderForm({
           above the bottom nav (h-16). Hidden on desktop. */}
       <div className="sticky bottom-16 z-30 -mx-4 mt-3 flex items-center gap-3 border-t border-border bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
         <div className="min-w-0 flex-1">
-          <p className="text-xs text-muted-foreground">Tổng tiền</p>
+          <p className="text-xs text-muted-foreground">
+            {t("orders.create.mobileTotal")}
+          </p>
           <p className="truncate text-base font-bold tabular-nums text-primary">
             {formatMoney(subtotal)}
           </p>
@@ -466,7 +493,7 @@ export function CreateOrderForm({
           onClick={onCancel}
           disabled={orderMutation.isPending}
         >
-          Hủy
+          {t("common.cancel")}
         </Button>
         <Button
           type="button"
@@ -475,7 +502,9 @@ export function CreateOrderForm({
           disabled={orderMutation.isPending || !customerId || validLines.length === 0}
           className="gap-1.5"
         >
-          {orderMutation.isPending ? "Đang lưu…" : "Lưu đơn"}
+          {orderMutation.isPending
+            ? t("common.saving")
+            : t("orders.create.submitOrder")}
         </Button>
       </div>
     </div>

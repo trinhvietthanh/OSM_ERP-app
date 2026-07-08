@@ -63,6 +63,22 @@ Mutations wrap the submit handler in `useMutation`; success/error feedback goes 
 
 The app is a Progressive Web App. `public/sw.js` is the service worker (registered only in production by `ServiceWorkerRegistration`). `src/app/manifest.ts` generates the web manifest. VAPID keys for Web Push are optional — see `.env.example`.
 
+### Internationalization (i18n)
+
+Vietnamese is the default; English is a UI-selectable alternative. Built with a lightweight React Context (no external i18n library, no locale-prefixed routes).
+
+- **`src/lib/i18n/config.ts`** — locales (`vi`, `en`), `DEFAULT_LOCALE = "vi"`, storage/cookie keys, and a module-level `activeLocale` singleton (`getActiveLocale`/`setActiveLocale`) that non-React formatters read.
+- **`src/lib/i18n/dictionaries.ts`** — `vi` is the source of truth; `en` is typed against `Dict` (so a missing/extra key is a **compile error**). `TranslationKey` (dot-paths to string leaves) gives autocomplete + type-checking for every `t("…")` call. `{placeholder}` interpolation via the second `t()` arg.
+- **`src/components/i18n-provider.tsx`** — `I18nProvider` (mounted in `Providers`) + `useI18n()` → `{ locale, setLocale, t }`. Persists locale to `localStorage` (instant client read) **and** a cookie (so server `generateMetadata` can localize), keeps `<html lang>` and the singleton in sync. No flash: protected routes are gated by client guards that render a loader first.
+- **`src/lib/i18n/server.ts`** — server-only `getT()`/`getLocale()` (reads the cookie via `next/headers`); use in Server Components / `generateMetadata`.
+
+**Conventions:**
+- Add user-facing text by adding a key to **both** `vi` and `en` in `dictionaries.ts`, then call `t("namespace.key", params?)` in a client component.
+- Server-side strings (document titles, descriptions) use `generateMetadata` + `const t = await getT()`.
+- Status labels: `orderStatusLabel(status)` / `tripStatusLabel(status)` (lib) read the active locale; `StatusBadge` subscribes via `useI18n()`.
+- Money is always VND; dates/numbers are locale-aware via `formatMoney`/`formatDate` (`lib/orders.ts`), which read `getActiveLocale()`.
+- The language switcher lives in the Profile settings list (`src/components/language-switcher.tsx`).
+
 ### Environment variables
 
 | Variable | Default | Purpose |

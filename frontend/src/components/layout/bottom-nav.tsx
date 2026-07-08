@@ -5,13 +5,15 @@ import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { MOBILE_NAV_ITEMS, isNavActive } from "@/lib/nav";
+import { useI18n } from "@/components/i18n-provider";
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { t } = useI18n();
 
   return (
     <nav
-      aria-label="Primary"
+      aria-label={t("nav.ariaPrimary")}
       className="sticky bottom-0 z-40 border-t border-border bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden"
     >
       <ul className="mx-auto grid max-w-md grid-cols-4">
@@ -34,7 +36,7 @@ export function BottomNav() {
                   strokeWidth={active ? 2.4 : 2}
                   aria-hidden
                 />
-                <span>{label}</span>
+                <span>{t(label)}</span>
               </Link>
             </li>
           );
